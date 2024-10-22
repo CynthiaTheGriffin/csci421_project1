@@ -1,19 +1,5 @@
 import psycopg2
 
-
-### Menu
-
-# List all possible actions
-print("What action would you like to take?")
-print("\t--Input 1 to generate a list of all advisors")
-print("\t--Input 2 to hire a new instructor")
-print("\t--Input 3 to generate a student's transcript")
-print("\t--Input 4 to generate the course list")
-print("\t--Input 5 to register a student for a course")
-
-# Get user input
-action = input("Please input a number to indicate your selection: ")
-
 # Connect to database
 conn = psycopg2.connect(dbname="what")
 cur = conn.cursor()
@@ -21,9 +7,12 @@ cur = conn.cursor()
 
 ### Generate advisor list
 def gen_advisor_list():
-    query = ''
+    query = '''
+    SELECT *
+    FROM advisor;
+    '''
     cur.execute(query)
-    pass
+    return
 
 ### Hire new instructor
 def hire_instructor():
@@ -77,6 +66,8 @@ def gen_transcript():
 def gen_course_list():
     sem = input("Enter the semester: ")
     year = input("Enter the year: ")
+    
+    query = 'SELECT * FROM course'
 
 ### Register a student for a course
 def register_student():
@@ -85,3 +76,38 @@ def register_student():
     student_id = input("Enter the student ID: ")
     course_id = input("Enter the course ID: ")
     section_id = input("Enter the section ID: ")
+
+
+### Menu
+
+# List all possible actions
+print("What action would you like to take?")
+print("\t--Input 1 to generate a list of all advisors")
+print("\t--Input 2 to hire a new instructor")
+print("\t--Input 3 to generate a student's transcript")
+print("\t--Input 4 to generate the course list")
+print("\t--Input 5 to register a student for a course")
+
+# Get user input
+valid_choice = False
+
+while (not valid_choice):
+    action = input("Please input a number to indicate your selection: ")
+
+    if action == 1:
+        valid_choice = True
+        gen_advisor_list()
+    elif action == 2:
+        valid_choice = True
+        hire_instructor()
+    elif action == 3:
+        valid_choice = True
+        gen_transcript()
+    elif action == 4:
+        valid_choice = True
+        gen_course_list()
+    elif action == 5:
+        valid_choice = True
+        register_student()
+    else:
+        print("Invalid selection. Please enter a single integer from 1 to 5.")
