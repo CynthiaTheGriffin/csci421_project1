@@ -13,8 +13,16 @@ def gen_advisor_list():
     cur = conn.cursor()
 
     cur.execute(query)
+
+    # Print results
+    for student in cur:
+        print(student[1]) # Student name
+        print(f'\tStudent ID: {student[0]}')
+        print(f'\tAdvisor: {student[2]}')
+    
     conn.close()
     return
+
 
 ### Hire new instructor
 def hire_instructor():
@@ -53,20 +61,29 @@ def hire_instructor():
         print(e)
         conn.rollback()
 
-    query = "select * from instructor"
-    try:
-        cur.execute(query)
-        for instructor in cur:
-            print(instructor[0], instructor[1], instructor[2], instructor[3])
-    except psycopg2.Error as e:
-        print("Other Error")
-        print(e)
-        conn.rollback()
-    finally:
-        conn.close()
+    # query = "SELECT * FROM instructor;"
+    # try:
+    #     cur.execute(query)
+    #     for instructor in cur:
+    #         print(instructor[0], instructor[1], instructor[2], instructor[3])
+    # except psycopg2.Error as e:
+    #     print("Other Error")
+    #     print(e)
+    #     conn.rollback()
+    # finally:
+    #     conn.close()
+    return
+
 
 ### Generate transcript
 def gen_transcript():
+    #  Prompt for a student ID and present a summary of that
+    # student's information followed by a list of every class taken by that student. Classes
+    # should be grouped by and in order of semester. For each class, the transcript should
+    # display the course ID, section number, course name, credits, and grade. In each
+    # semester group, display the GPA for that semester. At the end, display the current
+    # cumulative GPA. For example, the transcript for Zhang might appear as follows.
+    # Formatting details are at your discretion. Impress us.
     
     # Connect to database
     conn = psycopg2.connect(dbname="what")
@@ -75,9 +92,53 @@ def gen_transcript():
     student_id = input("Enter a student ID: ")
 
     query = '''
-    SELECT ID, name, dept_name
-    FROM student, 
+    SELECT ID, name, student.dept_name, course_id, sec_id, semester, year, title, credits, grade
+    FROM student
+    JOIN takes USING (id)
+    JOIN course USING (course_id)
+    WHERE ID LIKE %s
+    ORDER BY year, semester
     ;'''
+
+    cur.execute(student_id)
+
+    # TODO Print results
+    for ID, name, dept_name, course_id, sec_id, title, credits, grade in cur:
+        
+        print(f'Student ID: ')            
+
+
+
+    return
+
+
+def get_numeric_grade(letter_grade):
+    if letter_grade == 'A':
+        return 4.0
+    elif letter_grade == 'A-':
+        return 3.7
+    elif letter_grade == 'B+':
+        return 3.3
+    elif letter_grade == 'B':
+        return 3.0
+    elif letter_grade == 'B-':
+        return 2.7
+    elif letter_grade == 'C+':
+        return 2.3
+    elif letter_grade == 'C':
+        return 2.0
+    elif letter_grade == 'C-':
+        return 1.7
+    elif letter_grade == 'D+':
+        return 1.3
+    elif letter_grade == 'D':
+        return 1.0
+    elif letter_grade == 'D-':
+        return 0.7
+    elif letter_grade == 'F':
+        return 0.0
+    else:
+        print('improper use')
 
 ### Generate course list
 def gen_course_list():
@@ -102,9 +163,23 @@ def gen_course_list():
     JOIN classroom USING(room_number)
     JOIN enroll USING(course_id)
     JOIN time_slot USING(time_slot_id)
-    WHERE semester LIKE :sem AND year LIKE :year
+    WHERE semester LIKE %s AND year LIKE %s
     ORDER BY course_id ASC
     ;'''
+    cur.execute(query, (sem, year))
+
+    # Print results
+    # Iterate through all courses
+    for course_id, sec_id, title, credits, building, room_number, capacity, enrollment, day, start_hr, start_min, end_hr, end_min in cur:
+        print(f'{course_id} {sec_id} {title}')
+        print(f'\tCredits: {credits}')
+        print(f'\tLocation: {building} {room_number}')
+        print(f'\tEnrollment: {enrollment} / {capacity}')
+        print(f'\tMeet Times: {day} {start_hr}:{start_min} - {end_hr}:{end_min}')
+    
+    conn.close()
+    return
+
 
 ### Register a student for a course
 def register_student():
@@ -128,6 +203,10 @@ def register_student():
         conn.commit()
     except psycopg2.errors.ForeignKeyViolation:
         print("No such ID.")
+        conn.rollback()
+    except psycopg2.Error as e:
+        print("Other Error")
+        print(e)
         conn.rollback()
     finally:
         conn.close
