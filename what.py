@@ -97,20 +97,64 @@ def gen_transcript():
     JOIN takes USING (id)
     JOIN course USING (course_id)
     WHERE ID LIKE %s
-    ORDER BY year, semester
+    ORDER BY 
+    year,
+    case semester
+        when 'Fall' then 3
+        when 'Summer' then 2
+        when 'Spring' then 1
+        else 4
+    end
     ;'''
 
     cur.execute(student_id)
 
     # TODO Print results
-    for ID, name, dept_name, course_id, sec_id, title, credits, grade in cur:
-        
-        print(f'Student ID: ')            
+    print(f'Student ID: {student_id}')
+    # Get name and dept_name for cur
+    row = cur.fetchone()
+    name = row[1]
+    dept_name = row[2]
+    print(f'{name}, {dept_name}')
+
+    current_semester = row[5]
+    semester_grades = []
+    all_grades = []
+    semester_classes = []
+    
+    # Iterate each course
+    for _, _, _, course_id, sec_id, semester, year, title, credits, grade in cur:
+        # If new semester reached, print courses for previous semester
+        if current_semester != semester:
+            #Print Year, Semester, and GPA
+            print(f'{semester},{year}')
+            print(f'GPA: {calculate_GPA(semester_grades)}')
+            # Start new semester grades list
+            semester_grades = []
+            
+        else:
+            # Collect courses in current semester
+            semester_classes.append(f'{sec_id} {title} ({credits}) {grade}')
+            all_grades.append((grade, credits))
+            semester_grades.append((grade, credits))
+
+        print(f'{sec_id} {title} ({credits}) {grade}')           
+
+    print(f'Cumulative GPA {calculate_GPA(all_grades)}')
 
 
 
     return
 
+def calculate_GPA(grade_list):
+    quality_points = 0
+    total_credit_hours = 0
+
+    for grade in grade_list:
+        quality_points += (get_numeric_grade(grade[0]) * int(grade[1]))
+        total_credit_hours += int(grade[1])
+
+    return quality_points / total_credit_hours
 
 def get_numeric_grade(letter_grade):
     if letter_grade == 'A':
