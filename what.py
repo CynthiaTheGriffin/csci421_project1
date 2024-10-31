@@ -89,7 +89,7 @@ def gen_transcript():
     conn = psycopg2.connect(dbname="what")
     cur = conn.cursor()
         
-    student_id = input("Enter a student ID: ")
+    student_id = str(input("Enter a student ID: "))
 
     query = '''
     SELECT ID, name, student.dept_name, course_id, sec_id, semester, year, title, credits, grade
@@ -107,9 +107,8 @@ def gen_transcript():
     end
     ;'''
 
-    cur.execute(student_id)
+    cur.execute(query, (student_id))
 
-    # TODO Print results
     print(f'Student ID: {student_id}')
     # Get name and dept_name for cur
     row = cur.fetchone()
@@ -118,19 +117,27 @@ def gen_transcript():
     print(f'{name}, {dept_name}')
 
     current_semester = row[5]
+    current_year = row[6]
     semester_grades = []
     all_grades = []
     semester_classes = []
     
     # Iterate each course
     for _, _, _, course_id, sec_id, semester, year, title, credits, grade in cur:
-        # If new semester reached, print courses for previous semester
+        # If new semester reached, print previous semester info
         if current_semester != semester:
             #Print Year, Semester, and GPA
-            print(f'{semester},{year}')
+            print(f'{current_semester},{current_year}')
             print(f'GPA: {calculate_GPA(semester_grades)}')
+
+            #Print the Semester's Courses
+            for course in semester_classes:
+                print(course)
+
             # Start new semester grades list
             semester_grades = []
+            current_semester = semester
+            current_year = year
             
         else:
             # Collect courses in current semester
@@ -138,12 +145,8 @@ def gen_transcript():
             all_grades.append((grade, credits))
             semester_grades.append((grade, credits))
 
-        print(f'{sec_id} {title} ({credits}) {grade}')           
 
     print(f'Cumulative GPA {calculate_GPA(all_grades)}')
-
-
-
     return
 
 def calculate_GPA(grade_list):
@@ -183,6 +186,7 @@ def get_numeric_grade(letter_grade):
         return 0.0
     else:
         print('improper use')
+        return 0.0
 
 ### Generate course list
 def gen_course_list():
@@ -201,13 +205,13 @@ def gen_course_list():
         GROUP BY course_id
     )
 
-    SELECT course_id, sec_id, title, credits, building, room_number, capacity, enrollment, day, start_hr, start_min, end_hr, end_min
+    SELECT course_id, sec_id, title, credits, classroom.building, room_number, capacity, enrollment, day, start_hr, start_min, end_hr, end_min
     FROM course
     JOIN section USING(course_id)
     JOIN classroom USING(room_number)
     JOIN enroll USING(course_id)
     JOIN time_slot USING(time_slot_id)
-    WHERE semester LIKE %s AND year LIKE %s
+    WHERE semester LIKE 'Fall' AND year LIKE 2018
     ORDER BY course_id ASC
     ;'''
     cur.execute(query, (sem, year))
@@ -257,32 +261,34 @@ def register_student():
 
 ### Menu
 
-# List all possible actions
-print("What action would you like to take?")
-print("\t--Input 1 to generate a list of all advisors")
-print("\t--Input 2 to hire a new instructor")
-print("\t--Input 3 to generate a student's transcript")
-print("\t--Input 4 to generate the course list")
-print("\t--Input 5 to register a student for a course")
+
 
 # Get user input
 terminated = False
 quit_command_list = ("quit", "q", "Quit", "QUIT", "Q", "exit", "Exit", "EXIT")
 
 while (not terminated):
+    # List all possible actions
+    print("What action would you like to take?")
+    print("\t--Input 1 to generate a list of all advisors")
+    print("\t--Input 2 to hire a new instructor")
+    print("\t--Input 3 to generate a student's transcript")
+    print("\t--Input 4 to generate the course list")
+    print("\t--Input 5 to register a student for a course")
     action = input("Please input a number to indicate your selection: ")
+    action = action.strip()
 
-    if action == 1:
+    if action == '1':
         gen_advisor_list()
-    elif action == 2:
+    elif action == '2':
         hire_instructor()
-    elif action == 3:
+    elif action == '3':
         gen_transcript()
-    elif action == 4:
+    elif action == '4':
         gen_course_list()
-    elif action == 5:
+    elif action == '5':
         register_student()
-    elif quit_command_list.contains(action):
+    elif action in quit_command_list:
         terminated = True
     else:
         print("Invalid selection. Please enter a single integer from 1 to 5.")
