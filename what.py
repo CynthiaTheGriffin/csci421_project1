@@ -89,7 +89,7 @@ def gen_transcript():
     conn = psycopg2.connect(dbname="what")
     cur = conn.cursor()
         
-    student_id = str(input("Enter a student ID: "))
+    student_id = input("Enter a student ID: ")
 
     query = '''
     SELECT ID, name, student.dept_name, course_id, sec_id, semester, year, title, credits, grade
@@ -107,7 +107,7 @@ def gen_transcript():
     end
     ;'''
 
-    cur.execute(query, (student_id))
+    cur.execute(query, (student_id,))
 
     print(f'Student ID: {student_id}')
     # Get name and dept_name for cur
@@ -200,18 +200,18 @@ def gen_course_list():
     
     query = '''
     WITH enroll AS (
-        SELECT course_id, COUNT(id) as enrollment
+        SELECT course_id, sec_id, semester, year, COUNT(id) as enrollment
         FROM takes
-        GROUP BY course_id
+        GROUP BY course_id, sec_id, semester, year
     )
 
     SELECT course_id, sec_id, title, credits, classroom.building, room_number, capacity, enrollment, day, start_hr, start_min, end_hr, end_min
     FROM course
     JOIN section USING(course_id)
     JOIN classroom USING(room_number)
-    JOIN enroll USING(course_id)
+    JOIN enroll USING(course_id, sec_id, semester, year)
     JOIN time_slot USING(time_slot_id)
-    WHERE semester LIKE 'Fall' AND year LIKE 2018
+    WHERE semester = %s AND year = %s
     ORDER BY course_id ASC
     ;'''
     cur.execute(query, (sem, year))
@@ -219,11 +219,11 @@ def gen_course_list():
     # Print results
     # Iterate through all courses
     for course_id, sec_id, title, credits, building, room_number, capacity, enrollment, day, start_hr, start_min, end_hr, end_min in cur:
-        print(f'{course_id} {sec_id} {title}')
+        print(f'{course_id} {sec_id}: {title}')
         print(f'\tCredits: {credits}')
         print(f'\tLocation: {building} {room_number}')
         print(f'\tEnrollment: {enrollment} / {capacity}')
-        print(f'\tMeet Times: {day} {start_hr}:{start_min} - {end_hr}:{end_min}')
+        print(f'\tMeet Times: {day} {start_hr}:{str(start_min).ljust(2, "0")} - {end_hr}:{str(end_min).ljust(2, "0")}')
     
     conn.close()
     return
