@@ -7,7 +7,7 @@ def gen_advisor_list():
     SELECT student.ID, student.name, instructor.name AS advisor
     FROM student
     LEFT JOIN advisor ON(advisor.s_ID = student.ID)
-    JOIN instructor ON(advisor.i_ID = instructor.ID)
+    LEFT JOIN instructor ON(advisor.i_ID = instructor.ID)
     ;'''
     conn = psycopg2.connect(dbname="what")
     cur = conn.cursor()
@@ -91,6 +91,19 @@ def gen_transcript():
         
     student_id = input("Enter a student ID: ")
 
+    # Student name and department
+    query = '''
+    SELECT name, dept_name
+    FROM student
+    WHERE id LIKE %s
+    ;'''
+    cur.execute(query, (student_id,))
+    name, dept_name = cur.fetchone()
+
+    print(f'Student ID: {student_id}')
+    print(f'{name}, {dept_name}')
+
+    # Student courses and GPAs
     query = '''
     SELECT ID, name, student.dept_name, course_id, sec_id, semester, year, title, credits, grade
     FROM student
@@ -106,47 +119,50 @@ def gen_transcript():
         else 4
     end
     ;'''
-
     cur.execute(query, (student_id,))
+    
+    rows = cur.fetchall()
 
-    print(f'Student ID: {student_id}')
-    # Get name and dept_name for cur
-    row = cur.fetchone()
-    name = row[1]
-    dept_name = row[2]
-    print(f'{name}, {dept_name}')
-
-    current_semester = row[5]
-    current_year = row[6]
+    current_semester = rows[0][5]
+    current_year = rows[0][6]
     semester_grades = []
     all_grades = []
     semester_classes = []
     
     # Iterate each course
-    for _, _, _, course_id, sec_id, semester, year, title, credits, grade in cur:
+    for _, _, _, course_id, sec_id, semester, year, title, credits, grade in rows:
         # If new semester reached, print previous semester info
         if current_semester != semester:
-            #Print Year, Semester, and GPA
-            print(f'{current_semester},{current_year}')
-            print(f'GPA: {calculate_GPA(semester_grades)}')
-
-            #Print the Semester's Courses
-            for course in semester_classes:
-                print(course)
+            print_semester(current_semester, current_year, semester_classes, semester_grades)
 
             # Start new semester grades list
             semester_grades = []
+            semester_classes = []
             current_semester = semester
             current_year = year
             
-        else:
-            # Collect courses in current semester
-            semester_classes.append(f'{sec_id} {title} ({credits}) {grade}')
-            all_grades.append((grade, credits))
-            semester_grades.append((grade, credits))
+        # Collect courses
+        if grade is None: g = 'N/A'
+        else: g = grade
+        semester_classes.append(f'{course_id} {sec_id} {title} ({credits}) {g}')
 
+        all_grades.append((grade, credits))
+        semester_grades.append((grade, credits)) # For current semester
 
-    print(f'Cumulative GPA {calculate_GPA(all_grades)}')
+    # Print last semester
+    print_semester(current_semester, current_year, semester_classes, semester_grades)
+
+    print(f'Cumulative GPA: {calculate_GPA(all_grades)}')
+    return
+
+def print_semester(current_semester, current_year, semester_classes, semester_grades):
+    #Print Year, Semester, and GPA
+    print(f'{current_semester} {current_year}')
+    print(f'GPA: {calculate_GPA(semester_grades)}') # Semester GPA
+
+    #Print the Semester's Courses
+    for course in semester_classes:
+        print(f'\t{course}')
     return
 
 def calculate_GPA(grade_list):
@@ -154,10 +170,14 @@ def calculate_GPA(grade_list):
     total_credit_hours = 0
 
     for grade in grade_list:
-        quality_points += (get_numeric_grade(grade[0]) * int(grade[1]))
-        total_credit_hours += int(grade[1])
+        if not grade[0] is None:
+            quality_points += (get_numeric_grade(grade[0]) * int(grade[1]))
+            total_credit_hours += int(grade[1])
 
-    return quality_points / total_credit_hours
+    if total_credit_hours == 0:
+        return 'N/A'
+    else:
+        return round((quality_points / total_credit_hours), 2)
 
 def get_numeric_grade(letter_grade):
     if letter_grade == 'A':
@@ -185,7 +205,7 @@ def get_numeric_grade(letter_grade):
     elif letter_grade == 'F':
         return 0.0
     else:
-        print('improper use')
+        print(f'improper use: {str(letter_grade)}')
         return 0.0
 
 ### Generate course list
@@ -208,9 +228,9 @@ def gen_course_list():
     SELECT course_id, sec_id, title, credits, classroom.building, room_number, capacity, enrollment, day, start_hr, start_min, end_hr, end_min
     FROM course
     JOIN section USING(course_id)
-    JOIN classroom USING(room_number)
+    JOIN classroom USING(building, room_number)
     JOIN enroll USING(course_id, sec_id, semester, year)
-    JOIN time_slot USING(time_slot_id)
+    RIGHT JOIN time_slot USING(time_slot_id)
     WHERE semester = %s AND year = %s
     ORDER BY course_id ASC
     ;'''
@@ -218,12 +238,24 @@ def gen_course_list():
 
     # Print results
     # Iterate through all courses
+    is_first = True
+    cur_course = ()
+    
+    
     for course_id, sec_id, title, credits, building, room_number, capacity, enrollment, day, start_hr, start_min, end_hr, end_min in cur:
+        if is_first:
+            is_first = False
+        elif cur_course == (course_id, sec_id):
+            print(f'\t\t{day} {start_hr}:{str(start_min).ljust(2, "0")} - {end_hr}:{str(end_min).ljust(2, "0")}')
+            cur_course = (course_id, sec_id)
+            continue
+        cur_course = (course_id, sec_id)
+        
         print(f'{course_id} {sec_id}: {title}')
         print(f'\tCredits: {credits}')
         print(f'\tLocation: {building} {room_number}')
         print(f'\tEnrollment: {enrollment} / {capacity}')
-        print(f'\tMeet Times: {day} {start_hr}:{str(start_min).ljust(2, "0")} - {end_hr}:{str(end_min).ljust(2, "0")}')
+        print(f'\tMeet Times: \n\t\t{day} {start_hr}:{str(start_min).ljust(2, "0")} - {end_hr}:{str(end_min).ljust(2, "0")}')
     
     conn.close()
     return
@@ -236,21 +268,26 @@ def register_student():
     conn = psycopg2.connect(dbname="what")
     cur = conn.cursor()
     
-    sem = input("Enter the semester: ")
-    year = input("Enter the year: ")
     student_id = input("Enter the student ID: ")
     course_id = input("Enter the course ID: ")
     section_id = input("Enter the section ID: ")
+    sem = input("Enter the semester: ")
+    year = input("Enter the year: ")
 
     query = '''
-    INSERT INTO TAKES VALUES (%s, %s, %s, %s, %s)
+    INSERT INTO takes VALUES (%s, %s, %s, %s, %s)
     ;'''
 
     try:
-        cur.execute(query, (sem,year,student_id,course_id, section_id))
+        cur.execute(query, (student_id, course_id, section_id, sem, year))
         conn.commit()
     except psycopg2.errors.ForeignKeyViolation:
         print("No such ID.")
+        print(e)
+        conn.rollback()
+    except psycopg2.errors.DataException:
+        print("Improper value.")
+        print(e)
         conn.rollback()
     except psycopg2.Error as e:
         print("Other Error")
